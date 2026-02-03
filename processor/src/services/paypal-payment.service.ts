@@ -1,7 +1,7 @@
 import { CommercetoolsCartService, CommercetoolsPaymentService } from '@commercetools/connect-payments-sdk';
 import { getConfig } from '../config/config';
 import { log } from '../libs/logger';
-import { getCartIdFromContext, getPaymentInterfaceFromContext } from '../libs/fastify/context/context';
+import { getCartIdFromContext, getPaymentInterfaceFromContext, getMerchantReturnUrlFromContext } from '../libs/fastify/context/context';
 import { PayPalConfigResponseSchemaDTO, PayPalCaptureResponseSchemaDTO } from '../dtos/paypal-payment.dto';
 import { PaymentTransactions } from '../dtos/operations/payment-intents.dto';
 import { PaymentOutcome } from '../dtos/stripe-payment.dto';
@@ -97,14 +97,18 @@ export class PayPalPaymentService {
         paypalOrderId: paypalOrderId,
       });
 
-      // Create order from cart (same as Stripe does after payment success)
+      // Create order from cart using the same pattern as Stripe
+      // Uses: createOrderFromCart which calls apiClient.orders().post() with the exact pattern you specified
       const order = await createOrderFromCart(updatedCart);
 
-      log.info('Order created successfully for PayPal payment', {
+      log.info('Order created successfully for PayPal payment using same pattern as Stripe', {
         ctOrderId: order.id,
         orderNumber: order.orderNumber,
         ctCartId: cart.id,
         paypalOrderId: paypalOrderId,
+        orderState: order.orderState,
+        paymentState: order.paymentState,
+        shipmentState: order.shipmentState,
       });
 
       return {
@@ -113,6 +117,7 @@ export class PayPalPaymentService {
         paymentReference: ctPayment.id,
         ctOrderId: order.id,
         orderNumber: order.orderNumber,
+        merchantReturnUrl: getMerchantReturnUrlFromContext() || getConfig().merchantReturnUrl,
       };
     } catch (error) {
       log.error('Error recording PayPal payment in commercetools', { error, paypalOrderId });

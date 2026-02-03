@@ -17,6 +17,7 @@ export interface PayPalCaptureResponse {
   paymentReference?: string;
   ctOrderId?: string;
   orderNumber?: string;
+  merchantReturnUrl?: string;
 }
 
 export interface PayPalServiceProps {

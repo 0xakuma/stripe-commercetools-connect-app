@@ -126,4 +126,36 @@ export class PaymentFlows {
       paymentIntent: paymentIntentId,
     });
   }
+
+  async createPayPalPayment(paypalOrderId: string): Promise<void> {
+    try {
+      // Capture PayPal order and create commercetools order (same pattern as Stripe)
+      const result = await this.api.capturePayPalOrder(paypalOrderId);
+      
+      // Send completion event to frontend (same pattern as Stripe createPayment)
+      this.onComplete?.({
+        isSuccess: true,
+        paymentReference: result.paymentReference,
+        paymentIntent: paypalOrderId,
+        orderId: result.ctOrderId,
+        orderNumber: result.orderNumber,
+      });
+
+      // Redirect to order confirmation page if merchant return URL is provided
+      if (result.merchantReturnUrl) {
+        const returnUrl = new URL(result.merchantReturnUrl);
+        returnUrl.searchParams.append("paymentReference", result.paymentReference || "");
+        returnUrl.searchParams.append("orderId", result.ctOrderId || "");
+        returnUrl.searchParams.append("orderNumber", result.orderNumber || "");
+        returnUrl.searchParams.append("paymentMethod", "paypal");
+        returnUrl.searchParams.append("status", "completed");
+        
+        console.log("PayPal order created successfully, redirecting to confirmation:", returnUrl.toString());
+        window.location.href = returnUrl.toString();
+      }
+    } catch (error) {
+      console.error("Error processing PayPal payment:", error);
+      this.onError?.(error);
+    }
+  }
 }

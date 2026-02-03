@@ -6,6 +6,7 @@ import { PayPalConfigResponseSchemaDTO, PayPalCaptureResponseSchemaDTO } from '.
 import { PaymentTransactions } from '../dtos/operations/payment-intents.dto';
 import { PaymentOutcome } from '../dtos/stripe-payment.dto';
 import { SupportedPaymentComponentsSchemaDTO } from '../dtos/operations/payment-componets.dto';
+import { createOrderFromCart } from './commerce-tools/order-client';
 
 export interface PayPalPaymentServiceOptions {
   ctCartService: CommercetoolsCartService;
@@ -42,8 +43,8 @@ export class PayPalPaymentService {
   }
 
   /**
-   * Record a PayPal payment that was captured client-side.
-   * This creates the commercetools payment record for tracking purposes.
+   * Record a PayPal payment that was captured client-side and create the order.
+   * This creates the commercetools payment record and order.
    * The actual PayPal order capture happens client-side using PayPal SDK actions.
    */
   public async capturePayPalOrder(paypalOrderId: string): Promise<PayPalCaptureResponseSchemaDTO> {
@@ -82,7 +83,7 @@ export class PayPalPaymentService {
       });
 
       // Add payment to cart
-      await this.ctCartService.addPayment({
+      const updatedCart = await this.ctCartService.addPayment({
         resource: {
           id: cart.id,
           version: cart.version,
@@ -96,10 +97,22 @@ export class PayPalPaymentService {
         paypalOrderId: paypalOrderId,
       });
 
+      // Create order from cart (same as Stripe does after payment success)
+      const order = await createOrderFromCart(updatedCart);
+
+      log.info('Order created successfully for PayPal payment', {
+        ctOrderId: order.id,
+        orderNumber: order.orderNumber,
+        ctCartId: cart.id,
+        paypalOrderId: paypalOrderId,
+      });
+
       return {
         orderId: paypalOrderId,
         status: 'COMPLETED',
         paymentReference: ctPayment.id,
+        ctOrderId: order.id,
+        orderNumber: order.orderNumber,
       };
     } catch (error) {
       log.error('Error recording PayPal payment in commercetools', { error, paypalOrderId });

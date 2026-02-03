@@ -49,11 +49,48 @@ export class PayPalPaymentService {
    */
   public async capturePayPalOrder(paypalOrderId: string): Promise<PayPalCaptureResponseSchemaDTO> {
     try {
-      const cart = await this.ctCartService.getCart({ id: getCartIdFromContext() });
+      log.info('Starting PayPal order capture process', { paypalOrderId });
+
+      // Get cart from context
+      const cartId = getCartIdFromContext();
+      if (!cartId) {
+        log.error('Cart ID not found in context');
+        throw new Error('Cart ID not found in context');
+      }
+
+      log.info('Retrieved cart ID from context', { cartId, paypalOrderId });
+
+      const cart = await this.ctCartService.getCart({ id: cartId });
+      if (!cart) {
+        log.error('Cart not found in commercetools', { cartId, paypalOrderId });
+        throw new Error(`Cart not found: ${cartId}`);
+      }
+
+      log.info('Retrieved cart from commercetools', { 
+        cartId: cart.id, 
+        cartVersion: cart.version,
+        totalPrice: cart.totalPrice,
+        paypalOrderId 
+      });
+
       const amountPlanned = await this.ctCartService.getPaymentAmount({ cart });
+      
+      log.info('Calculated payment amount', { 
+        amountPlanned, 
+        cartId: cart.id, 
+        paypalOrderId 
+      });
 
       // Create commercetools payment with successful charge transaction
       // The PayPal order was already captured client-side via actions.order.capture()
+      log.info('Creating commercetools payment', { 
+        amountPlanned, 
+        paypalOrderId,
+        cartId: cart.id,
+        customerId: cart.customerId,
+        anonymousId: cart.anonymousId
+      });
+
       const ctPayment = await this.ctPaymentService.createPayment({
         amountPlanned,
         interfaceId: paypalOrderId,
@@ -82,13 +119,33 @@ export class PayPalPaymentService {
         ],
       });
 
+      log.info('Successfully created commercetools payment', {
+        ctPaymentId: ctPayment.id,
+        paypalOrderId,
+        cartId: cart.id,
+      });
+
       // Add payment to cart
+      log.info('Adding payment to cart', {
+        cartId: cart.id,
+        cartVersion: cart.version,
+        ctPaymentId: ctPayment.id,
+        paypalOrderId,
+      });
+
       const updatedCart = await this.ctCartService.addPayment({
         resource: {
           id: cart.id,
           version: cart.version,
         },
         paymentId: ctPayment.id,
+      });
+
+      log.info('Successfully added payment to cart', {
+        cartId: updatedCart.id,
+        cartVersion: updatedCart.version,
+        ctPaymentId: ctPayment.id,
+        paypalOrderId,
       });
 
       log.info('PayPal payment recorded in commercetools', {
@@ -99,6 +156,12 @@ export class PayPalPaymentService {
 
       // Create order from cart using the same pattern as Stripe
       // Uses: createOrderFromCart which calls apiClient.orders().post() with the exact pattern you specified
+      log.info('Creating order from cart', {
+        cartId: updatedCart.id,
+        cartVersion: updatedCart.version,
+        paypalOrderId,
+      });
+
       const order = await createOrderFromCart(updatedCart);
 
       log.info('Order created successfully for PayPal payment using same pattern as Stripe', {
@@ -111,7 +174,7 @@ export class PayPalPaymentService {
         shipmentState: order.shipmentState,
       });
 
-      return {
+      const response = {
         orderId: paypalOrderId,
         status: 'COMPLETED',
         paymentReference: ctPayment.id,
@@ -119,8 +182,20 @@ export class PayPalPaymentService {
         orderNumber: order.orderNumber,
         merchantReturnUrl: getMerchantReturnUrlFromContext() || getConfig().merchantReturnUrl,
       };
+
+      log.info('PayPal capture process completed successfully', {
+        response,
+        paypalOrderId,
+      });
+
+      return response;
     } catch (error) {
-      log.error('Error recording PayPal payment in commercetools', { error, paypalOrderId });
+      log.error('Error recording PayPal payment in commercetools', { 
+        error: error instanceof Error ? error.message : String(error),
+        stack: error instanceof Error ? error.stack : undefined,
+        paypalOrderId,
+        cartIdFromContext: getCartIdFromContext(),
+      });
       throw error;
     }
   }

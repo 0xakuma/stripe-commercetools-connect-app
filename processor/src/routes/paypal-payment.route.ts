@@ -59,9 +59,31 @@ export const paypalPaymentRoutes = async (
       },
     },
     async (request, reply) => {
-      const { orderId } = request.params;
-      const result = await opts.paypalService.capturePayPalOrder(orderId);
-      return reply.status(200).send(result);
+      try {
+        const { orderId } = request.params;
+        const result = await opts.paypalService.capturePayPalOrder(orderId);
+        return reply.status(200).send(result);
+      } catch (error) {
+        const err = error as Error;
+        const errorMessage = err.message || 'Failed to capture PayPal order';
+        
+        // Log the full error for debugging
+        fastify.log.error('PayPal capture error', {
+          orderId: request.params.orderId,
+          error: errorMessage,
+          stack: err.stack,
+        });
+
+        return reply.status(500).send({
+          orderId: request.params.orderId,
+          status: 'ERROR',
+          captureId: undefined,
+          paymentReference: undefined,
+          ctOrderId: undefined,
+          orderNumber: undefined,
+          merchantReturnUrl: undefined,
+        });
+      }
     },
   );
 };

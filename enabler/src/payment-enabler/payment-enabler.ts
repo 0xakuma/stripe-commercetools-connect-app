@@ -201,6 +201,16 @@ export type PaymentResult =
        * The payment intent id.
        */
       paymentIntent: string;
+
+      /**
+       * The commercetools order ID (for PayPal payments).
+       */
+      orderId?: string;
+
+      /**
+       * The commercetools order number (for PayPal payments).
+       */
+      orderNumber?: string;
     }
   | {
       /**

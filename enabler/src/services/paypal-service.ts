@@ -15,6 +15,8 @@ export interface PayPalCaptureResponse {
   status: string;
   captureId?: string;
   paymentReference?: string;
+  ctOrderId?: string;
+  orderNumber?: string;
 }
 
 export interface PayPalServiceProps {

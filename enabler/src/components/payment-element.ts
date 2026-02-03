@@ -197,13 +197,17 @@ export class PaymentElementComponent extends BaseComponent {
 
           console.log("PayPal order captured:", captureDetails);
 
-          // Notify the processor backend to create payment record
+          // Notify the processor backend to create payment record and order
           const result = await paypalApi.captureOrder(data.orderID);
+
+          console.log("PayPal payment recorded and order created:", result);
 
           onComplete({
             isSuccess: true,
             paymentReference: result.paymentReference || result.orderId,
             paymentIntent: data.orderID,
+            orderId: result.ctOrderId,
+            orderNumber: result.orderNumber,
           });
         } catch (error) {
           console.error("Error capturing PayPal order:", error);

@@ -10,6 +10,8 @@ export const PayPalCaptureResponseSchema = Type.Object({
   status: Type.String(),
   captureId: Type.Optional(Type.String()),
   paymentReference: Type.Optional(Type.String()),
+  ctOrderId: Type.Optional(Type.String()),
+  orderNumber: Type.Optional(Type.String()),
 });
 
 export const PayPalConfigResponseSchema = Type.Object({

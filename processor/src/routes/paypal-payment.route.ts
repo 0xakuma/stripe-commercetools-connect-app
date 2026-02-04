@@ -64,25 +64,24 @@ export const paypalPaymentRoutes = async (
         const result = await opts.paypalService.capturePayPalOrder(orderId);
         return reply.status(200).send(result);
       } catch (error) {
-        const err = error as Error;
+        const err = error as any;
         const errorMessage = err.message || 'Failed to capture PayPal order';
-        
+
+        // Extract status code from error if available (e.g., from commercetools API errors)
+        const statusCode = err.statusCode || err.code || 500;
+
         // Log the full error for debugging
         fastify.log.error('PayPal capture error', {
           orderId: request.params.orderId,
           error: errorMessage,
+          statusCode,
           stack: err.stack,
+          body: err.body,
         });
 
-        return reply.status(500).send({
-          orderId: request.params.orderId,
-          status: 'ERROR',
-          captureId: undefined,
-          paymentReference: undefined,
-          ctOrderId: undefined,
-          orderNumber: undefined,
-          merchantReturnUrl: undefined,
-        });
+        // Re-throw to let fastify's error handler deal with it properly
+        // This will preserve the original error status code
+        throw error;
       }
     },
   );

@@ -1,4 +1,5 @@
 import { CommercetoolsCartService, CommercetoolsPaymentService } from '@commercetools/connect-payments-sdk';
+import { Cart } from '@commercetools/platform-sdk';
 import { getConfig } from '../config/config';
 import { log } from '../libs/logger';
 import { getCartIdFromContext, getPaymentInterfaceFromContext, getMerchantReturnUrlFromContext } from '../libs/fastify/context/context';
@@ -40,6 +41,34 @@ export class PayPalPaymentService {
       dropins: [],
       components: [{ type: 'paypal' }],
     };
+  }
+
+  /**
+   * Validates that a cart has all required fields for order creation
+   */
+  private validateCartForOrder(cart: Cart): void {
+    const errors: string[] = [];
+
+    if (!cart.lineItems || cart.lineItems.length === 0) {
+      errors.push('Cart has no line items');
+    }
+
+    if (!cart.shippingAddress) {
+      errors.push('Cart is missing shipping address');
+    }
+
+    if (!cart.totalPrice || cart.totalPrice.centAmount <= 0) {
+      errors.push('Cart has invalid total price');
+    }
+
+    if (errors.length > 0) {
+      const errorMessage = `Cart validation failed: ${errors.join(', ')}`;
+      log.error('Cart validation failed', {
+        cartId: cart.id,
+        errors,
+      });
+      throw new Error(errorMessage);
+    }
   }
 
   /**
@@ -154,12 +183,18 @@ export class PayPalPaymentService {
         paypalOrderId: paypalOrderId,
       });
 
+      // Validate cart before order creation
+      this.validateCartForOrder(updatedCart);
+
       // Create order from cart using the same pattern as Stripe
       // Uses: createOrderFromCart which calls apiClient.orders().post() with the exact pattern you specified
       log.info('Creating order from cart', {
         cartId: updatedCart.id,
         cartVersion: updatedCart.version,
         paypalOrderId,
+        lineItemCount: updatedCart.lineItems?.length || 0,
+        totalPrice: updatedCart.totalPrice,
+        shippingAddress: !!updatedCart.shippingAddress,
       });
 
       const order = await createOrderFromCart(updatedCart);
